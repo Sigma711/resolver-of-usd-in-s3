@@ -18,19 +18,20 @@ class S3Resolver : public ArDefaultResolver {
   std::string Resolve(const std::string& path);
 
   std::string ResolveWithAssetInfo(const std::string& path,
-                                   ArAssetInfo* assetInfo);
+                                   ArAssetInfo* asset_info);
 
   bool IsRelativePath(const std::string& path);
 
   VtValue GetModificationTimestamp(const std::string& path,
-                                   const std::string& resolvedPath);
+                                   const std::string& resolved_path);
 
   void UpdateAssetInfo(const std::string& identifier,
-                       const std::string& filePath,
-                       const std::string& fileVersion, ArAssetInfo* assetInfo);
+                       const std::string& file_path,
+                       const std::string& file_version,
+                       ArAssetInfo* asset_info);
 
   bool FetchToLocalResolvedPath(const std::string& path,
-                                const std::string& resolvedPath);
+                                const std::string& resolved_path);
 
   void ConfigureResolverForAsset(const std::string& path);
 
