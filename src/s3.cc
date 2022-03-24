@@ -77,7 +77,7 @@ constexpr size_t cexpr_strlen(const char (&)[len]) {
 
 // Parse an S3 url and strip off the prefix ('s3:', 's3:/' or 's3://')
 // e.g. s3://bucket/object.usd returns bucket/object.usd
-std::string parse_path(const std::string& path) {
+std::string ParsePath(const std::string& path) {
   constexpr auto schema_length_short = cexpr_strlen(usd_s3::S3_PREFIX_SHORT);
   return path.substr(path.find_first_not_of("/", schema_length_short));
 }
@@ -85,7 +85,7 @@ std::string parse_path(const std::string& path) {
 // Get the bucket from a parsed path
 // e.g. 'bucket/object.usd' returns 'bucket'
 //      'bucket/somedir/object.usd' returns 'bucket'
-const std::string get_bucket_name(const std::string& path) {
+const std::string GetBucketName(const std::string& path) {
   return path.substr(0, path.find_first_of('/'));
 }
 
@@ -93,7 +93,7 @@ const std::string get_bucket_name(const std::string& path) {
 // e.g. 'bucket/object.usd' returns 'object.usd'
 //      'bucket/somedir/object.usd' returns 'somedir/object.usd'
 //      'bucket/object.usd?versionId=abc123' returns object.usd
-const std::string get_object_name(const std::string& path) {
+const std::string GetObjectName(const std::string& path) {
   const int i = path.find_first_of('/');
   return path.substr(i, path.find_first_of('?') - i);
 }
@@ -101,21 +101,21 @@ const std::string get_object_name(const std::string& path) {
 // Check if a parsed path uses S3 versioning
 // e.g. 'bucket/object.usd' returns False
 //      'bucket/object.usd?versionId=abc123' returns True
-const bool uses_versioning(const std::string& path) {
+const bool UsesVersioning(const std::string& path) {
   return path.find("versionId=") != std::string::npos;
 }
 
 // Get the version ID of a parsed path uses S3 versioning
 // e.g. 'bucket/object.usd' returns an empty string
 //      'bucket/object.usd?versionId=abc123' returns abc123
-const std::string get_object_versionid(const std::string& path) {
+const std::string GetObjectVersionid(const std::string& path) {
   const uint i = path.find_first_of("versionId=");
   return (i != std::string::npos) ? path.substr(i + 10) : std::string();
 }
 
 // get an environment variable
-std::string get_env_var(const std::string& env_var,
-                        const std::string& default_value) {
+std::string GetEnvVar(const std::string& env_var,
+                      const std::string& default_value) {
   const auto env_var_value = getenv(env_var.c_str());
   return (env_var_value != nullptr) ? env_var_value : default_value;
 }
@@ -153,10 +153,10 @@ struct Cache {
 std::map<std::string, Cache> cached_requests;
 
 // Determine a local path for an asset
-std::string generate_path(const std::string& path) {
-  const std::string local_dir = get_env_var(CACHE_PATH_ENV_VAR, "/tmp");
-  return TfNormPath(local_dir + "/" + get_bucket_name(path) + "/" +
-                    get_object_name(path));
+std::string GeneratePath(const std::string& path) {
+  const std::string local_dir = GetEnvVar(CACHE_PATH_ENV_VAR, "/tmp");
+  return TfNormPath(local_dir + "/" + GetBucketName(path) + "/" +
+                    GetObjectName(path));
 }
 
 // Check / resolve an asset with an S3 HEAD request and store the result in the
@@ -174,12 +174,12 @@ std::string check_object(const std::string& path, Cache& cache) {
   }
 
   Aws::S3::Model::HeadObjectRequest head_request;
-  Aws::String bucket_name = get_bucket_name(path).c_str();
-  Aws::String object_name = get_object_name(path).c_str();
+  Aws::String bucket_name = GetBucketName(path).c_str();
+  Aws::String object_name = GetObjectName(path).c_str();
   head_request.WithBucket(bucket_name).WithKey(object_name);
 
-  if (uses_versioning(path)) {
-    Aws::String object_versionid = get_object_versionid(path).c_str();
+  if (UsesVersioning(path)) {
+    Aws::String object_versionid = GetObjectVersionid(path).c_str();
     head_request.WithVersionId(object_versionid);
     cache.is_pinned = true;
   }
@@ -192,7 +192,7 @@ std::string check_object(const std::string& path, Cache& cache) {
                                .GetLastModified()
                                .SecondsWithMSPrecision();
     // check
-    std::string local_path = generate_path(path);
+    std::string local_path = GeneratePath(path);
     if (date_modified > cache.timestamp) {
       cache.state = CACHE_NEEDS_FETCHING;
     }
@@ -218,12 +218,12 @@ bool fetch_object(const std::string& path, Cache& cache) {
   }
 
   Aws::S3::Model::GetObjectRequest object_request;
-  Aws::String bucket_name = get_bucket_name(path).c_str();
-  Aws::String object_name = get_object_name(path).c_str();
+  Aws::String bucket_name = GetBucketName(path).c_str();
+  Aws::String object_name = GetObjectName(path).c_str();
   object_request.WithBucket(bucket_name).WithKey(object_name);
 
-  if (uses_versioning(path)) {
-    Aws::String object_versionid = get_object_versionid(path).c_str();
+  if (UsesVersioning(path)) {
+    Aws::String object_versionid = GetObjectVersionid(path).c_str();
     object_request.WithVersionId(object_versionid);
     cache.is_pinned = true;
   }
@@ -289,12 +289,12 @@ S3::S3() {
   config.scheme = Aws::Http::Scheme::HTTP;
 
   // set a custom endpoint e.g. an ActiveScale system node or minio server
-  if (!get_env_var(ENDPOINT_ENV_VAR, "").empty()) {
-    config.endpointOverride = (get_env_var(ENDPOINT_ENV_VAR, "")).c_str();
+  if (!GetEnvVar(ENDPOINT_ENV_VAR, "").empty()) {
+    config.endpointOverride = (GetEnvVar(ENDPOINT_ENV_VAR, "")).c_str();
   }
-  if (!get_env_var(PROXY_HOST_ENV_VAR, "").empty()) {
-    config.proxyHost = get_env_var(PROXY_HOST_ENV_VAR, "").c_str();
-    config.proxyPort = atoi(get_env_var(PROXY_PORT_ENV_VAR, "80").c_str());
+  if (!GetEnvVar(PROXY_HOST_ENV_VAR, "").empty()) {
+    config.proxyHost = GetEnvVar(PROXY_HOST_ENV_VAR, "").c_str();
+    config.proxyPort = atoi(GetEnvVar(PROXY_PORT_ENV_VAR, "80").c_str());
   }
 
   config.connectTimeoutMs = 3000;
@@ -314,8 +314,8 @@ S3::~S3() {
 
 // Resolve an asset path such as 's3://hello/world.usd'
 // Checks if the asset exists and returns a local path for the asset
-std::string S3::resolve_name(const std::string& asset_path) {
-  const auto path = parse_path(asset_path);
+std::string S3::ResolveName(const std::string& asset_path) {
+  const auto path = ParsePath(asset_path);
   const auto cached_result = cached_requests.find(path);
   if (cached_result != cached_requests.end()) {
     if (cached_result->second.state == CACHE_FETCHED) {
@@ -328,7 +328,7 @@ std::string S3::resolve_name(const std::string& asset_path) {
     // return check_object(path, cached_result->second);
     return cached_result->second.local_path;
   } else {
-    Cache cache{CACHE_NEEDS_FETCHING, generate_path(path)};
+    Cache cache{CACHE_NEEDS_FETCHING, GeneratePath(path)};
     // std::string result = check_object(path, cache);
     // TODO: this should just generate a local path
     cached_requests.insert(std::make_pair(path, cache));
@@ -339,7 +339,7 @@ std::string S3::resolve_name(const std::string& asset_path) {
 // Update asset info for resolved assets
 // If the asset needs fetching, nothing is done as the cache is updated during
 // the fetch phase If the asset doesn't need fetching, also do nothing (lol)
-void S3::update_asset_info(const std::string& asset_path) {
+void S3::UpdateAssetInfo(const std::string& asset_path) {
   // const auto path = parse_path(asset_path);
   // const auto cached_result = cached_requests.find(path);
   // if (cached_result != cached_requests.end()) {
@@ -358,9 +358,9 @@ void S3::update_asset_info(const std::string& asset_path) {
 
 // Fetch an asset to a local path
 // The asset should be resolved first and exist in the cache
-bool S3::fetch_asset(const std::string& asset_path,
-                     const std::string& local_path) {
-  const auto path = parse_path(asset_path);
+bool S3::FetchAsset(const std::string& asset_path,
+                    const std::string& local_path) {
+  const auto path = ParsePath(asset_path);
   if (s3_client == nullptr) {
     return false;
   }
@@ -381,14 +381,14 @@ bool S3::fetch_asset(const std::string& asset_path,
 }
 
 // returns true if the path matches the S3 schema
-bool S3::matches_schema(const std::string& path) {
+bool S3::MatchesSchema(const std::string& path) {
   constexpr auto schema_length_short = cexpr_strlen(usd_s3::S3_PREFIX_SHORT);
   return path.compare(0, schema_length_short, usd_s3::S3_PREFIX_SHORT) == 0;
 }
 
 // returns the timestamp of the local cached asset
-double S3::get_timestamp(const std::string& asset_path) {
-  const auto path = parse_path(asset_path);
+double S3::GetTimestamp(const std::string& asset_path) {
+  const auto path = ParsePath(asset_path);
   if (s3_client == nullptr) {
     return 1.0;
   }
@@ -405,7 +405,7 @@ double S3::get_timestamp(const std::string& asset_path) {
 }
 
 // refresh all assets with this prefix
-void S3::refresh(const std::string& prefix) {
+void S3::Refresh(const std::string& prefix) {
   if (prefix.empty()) {
     // refresh all assets
     cached_requests.clear();

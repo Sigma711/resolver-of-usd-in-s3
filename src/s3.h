@@ -26,15 +26,14 @@ class S3 {
   S3();
   ~S3();
 
-  bool matches_schema(const std::string& path);
+  bool MatchesSchema(const std::string& path);
 
-  std::string resolve_name(const std::string& path);
-  void update_asset_info(const std::string& asset_path);
-  bool fetch_asset(const std::string& asset_path,
-                   const std::string& local_path);
-  double get_timestamp(const std::string& asset_path);
+  std::string ResolveName(const std::string& path);
+  void UpdateAssetInfo(const std::string& asset_path);
+  bool FetchAsset(const std::string& asset_path, const std::string& local_path);
+  double GetTimestamp(const std::string& asset_path);
 
-  void refresh(const std::string& prefix);
+  void Refresh(const std::string& prefix);
 
  private:
 };
