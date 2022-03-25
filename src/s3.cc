@@ -120,19 +120,6 @@ std::string GetEnvVar(const std::string& env_var,
   return (env_var_value != nullptr) ? env_var_value : default_value;
 }
 
-// TODO: random names may be required to support multiple versions of the same
-// asset std::string generate_name(const std::string& base, const std::string&
-// extension, char* buffer) {
-//     std::tmpnam(buffer);
-//     std::string ret(buffer);
-//     const auto last_slash = ret.find_last_of('/');
-//     if (last_slash == std::string::npos) {
-//         return base + ret + extension;
-//     } else {
-//         return base + ret.substr(last_slash + 1) + extension;
-//     }
-// }
-
 }  // namespace
 
 namespace usd_s3 {
@@ -165,12 +152,6 @@ std::string GeneratePath(const std::string& path) {
 std::string check_object(const std::string& path, Cache& cache) {
   if (s3_client == nullptr) {
     return std::string();
-  }
-
-  // versioned objects can't change... no need to check them
-  // TODO: move this check?
-  if (cache.is_pinned) {
-    return cache.local_path;
   }
 
   Aws::S3::Model::HeadObjectRequest head_request;
@@ -228,6 +209,8 @@ bool fetch_object(const std::string& path, Cache& cache) {
     cache.is_pinned = true;
   }
 
+  double local_date_modified_old = cache.timestamp;
+
   // Only download the asset if there's no local copy or if the local copy is
   // outdated The GET request returns a 304 (not modified).
   const std::string local_path = cache.local_path;
@@ -237,14 +220,11 @@ bool fetch_object(const std::string& path, Cache& cache) {
       cache.timestamp = local_date_modified;
       object_request.WithIfModifiedSince(local_date_modified);
     }
-    // TODO compare cache ETag with MD5 of local copy to know if fetching is
-    // required
   }
 
   auto get_object_outcome = s3_client->GetObject(object_request);
 
   if (get_object_outcome.IsSuccess()) {
-    // TODO: support directories in object_name
     // prepare cache directory
     const std::string& bucket_path =
         cache.local_path.substr(0, cache.local_path.find_last_of('/'));
@@ -254,14 +234,13 @@ bool fetch_object(const std::string& path, Cache& cache) {
         return false;
       }
     }
-    // TODO: restore the original datemodified on the asset
+    cache.timestamp = local_date_modified_old;
     Aws::OFStream local_file;
     local_file.open(cache.local_path, std::ios::out | std::ios::binary);
     local_file << get_object_outcome.GetResult().GetBody().rdbuf();
     cache.timestamp = get_object_outcome.GetResult()
                           .GetLastModified()
                           .SecondsWithMSPrecision();
-    // TF_DEBUG(S3_DBG).Msg("S3: fetch_object version: %s\n",
     // get_object_outcome.GetResult().GetVersionId().c_str());
     cache.state = CACHE_FETCHED;
     cache.ETag = get_object_outcome.GetResult().GetETag().c_str();
@@ -285,7 +264,6 @@ S3::S3() {
   Aws::InitAPI(options);
 
   Aws::Client::ClientConfiguration config;
-  // TODO: set executor to a PooledThreadExecutor to limit the number of threads
   config.scheme = Aws::Http::Scheme::HTTP;
 
   // set a custom endpoint e.g. an ActiveScale system node or minio server
@@ -324,14 +302,11 @@ std::string S3::ResolveName(const std::string& asset_path) {
     if (cached_result->second.state != CACHE_MISSING) {
       return cached_result->second.local_path;
     }
-    // TODO: this should just generate a local path
-    // return check_object(path, cached_result->second);
-    return cached_result->second.local_path;
+    return "s3://" + cached_result->second.local_path;
   } else {
     Cache cache{CACHE_NEEDS_FETCHING, GeneratePath(path)};
     // std::string result = check_object(path, cache);
-    // TODO: this should just generate a local path
-    cached_requests.insert(std::make_pair(path, cache));
+    cached_requests.insert(std::make_pair("s3://" + path, cache));
     return cache.local_path;
   }
 }
@@ -410,7 +385,6 @@ void S3::Refresh(const std::string& prefix) {
     // refresh all assets
     cached_requests.clear();
   } else {
-    // TODO: remove only matching assets
     // and reload based on S3 list operation with prefix
     cached_requests.clear();
   }

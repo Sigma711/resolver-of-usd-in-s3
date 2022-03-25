@@ -98,8 +98,6 @@ void S3Resolver::ConfigureResolverForAsset(const std::string& path) {
 }
 
 void S3Resolver::RefreshContext(const ArResolverContext& context) {
-  TF_DEBUG(USD_S3_RESOLVER).Msg("S3Resolver REFRESH CONTEXT WOPPA\n");
-  // TODO: get prefix from context path
   g_s3.refresh("");
   // This is empty anyway
   ArDefaultResolver::RefreshContext(context);
